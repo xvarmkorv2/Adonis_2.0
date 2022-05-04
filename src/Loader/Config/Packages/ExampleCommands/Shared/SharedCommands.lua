@@ -14,6 +14,25 @@ local Settings = setmetatable({}, {
 	end
 })
 
+--// Output
+local Verbose = false
+local oWarn = warn;
+
+local function warn(...)
+	if Root and Root.Warn then
+		Root.Warn(...)
+	else
+		oWarn(":: ".. script.Name .." ::", ...)
+	end
+end
+
+local function DebugWarn(...)
+	if Verbose then
+		warn("Debug ::", ...)
+	end
+end
+
+
 local DeclareCommands = {
 	--// Since this is in a shared module, everything in this module will be seen to both the server and the client.
 	--// This allows us to define code intended for the client alongside code intended for the server.
@@ -26,12 +45,32 @@ local DeclareCommands = {
 	TestCommand = {
 		Prefix = Settings.Prefix,
 		Aliases = { "testcommand", "example" },
-		Arguments = { "players", "testarg2", "testarg3" },
+		Arguments = { "players", "testarg2", "testarg3", "someNumber"},
 		Parsers = {
-			testarg2 = function(data, cmdArg, text)
-				Root.Warn("PARSE ARG", data, cmdArg, text)
-				return "PARSE RESULT HERE"
-			end
+			--// Parsers are command-author-defined argument parsers/validators
+			--// If a parser is not defined for an arg, the raw argument text supplied by the player will be used instead
+			["testarg2"] = function(data, cmdArg, text)
+				warn("PARSE ARG", data, cmdArg, text)
+				return {
+					Success = true,
+					Result = "PARSING RESULT HERE"
+				}
+				--[[
+					If Errored:
+					return {
+						Success = false,
+						Error = "PARSING ERROR HERE" -- Aborts the entire command before it runs if parsing fails
+					}
+				--]]
+			end,
+
+			["players"] = function(...)
+				return Root.Commands.ArgumentParsers.players(...)
+			end,
+
+			["someNumber"] = function(...)
+				return Root.Commands.ArgumentParsers.number(...)
+			end,
 		},
 		Description = "Test command",
 		Permissions = { "Player" },
@@ -40,21 +79,25 @@ local DeclareCommands = {
 		ServerSide = function(data: {})
 			local plr = data.Player
 			local args = data.Arguments
-			local parsed = data.ParsedArguments
 
-			Root.Warn("Success!", {
+			for i,v in pairs(args) do
+				warn("Got Argument", i, "of type", type(v), ":", v)
+			end 
+
+			warn("Success!", {
 				Player = plr,
 				Args = args,
-				Parsed = parsed,
 				Data = data
 			})
 
+			warn("SEND TO CLIENT SIDE TEST")
 			data:SendToClientSide(plr, args)
-			Root.Warn("ClientGet Test", data:GetFromClientSide(plr, args))
+			warn("GET FROM CLIENT SIDE TEST")
+			warn("ClientGet Test", data:GetFromClientSide(plr, args))
 		end,
 
 		ClientSide = function(...)
-			Root.Warn("Client Success!", ...)
+			warn("Client Success!", ...)
 
 			return "WE GOT THIS FROM THE CLIENT!"
 		end

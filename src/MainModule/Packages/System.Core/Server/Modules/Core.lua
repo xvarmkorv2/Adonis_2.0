@@ -8,9 +8,27 @@
 
 local Root, Package, Utilities, Service
 
+--// Output
+local Verbose = false
+local oWarn = warn;
+
+local function warn(...)
+	if Root and Root.Warn then
+		Root.Warn(...)
+	else
+		oWarn(":: ".. script.Name .." ::", ...)
+	end
+end
+
+local function DebugWarn(...)
+	if Verbose then
+		warn("Debug ::", ...)
+	end
+end
+
 local function delayedTimeoutMessage(stillWaiting: boolean, name: string, s: number)
 	if stillWaiting then
-		Root.Warn("Process taking too long to complete: >".. s .."s", name)
+		warn("Process taking too long to complete: >".. s .."s", name)
 	end
 end
 
@@ -38,7 +56,7 @@ local Core = {
 --- @param defaultValue any -- Default player data value (can be function which returns data (use for tables))
 function Core.DeclareDefaultPlayerData(self, ind, defaultValue)
 	if self.DeclaredDefaultPlayerData[ind] then
-		Root.Warn("DefaultPlayerData \"".. ind .."\" already delcared. Overwriting.")
+		warn("DefaultPlayerData \"".. ind .."\" already delcared. Overwriting.")
 	end
 
 	self.DeclaredDefaultPlayerData[ind] = defaultValue
@@ -54,7 +72,7 @@ end
 --- @param func function -- PreLoad function
 function Core.DeclarePlayerPreLoadProcess(self, ind, func)
 	if self.DeclaredPlayerPreLoadingHandlers[ind] then
-		Root.Warn("Player Pre-Loading Process \"".. ind .."\" already declared. Overwriting.")
+		warn("Player Pre-Loading Process \"".. ind .."\" already declared. Overwriting.")
 	end
 
 	self.DeclaredPlayerPreLoadingHandlers[ind] = func
@@ -69,7 +87,7 @@ end
 --- @param func function -- Handler function
 function Core.DeclarePlayerDataHandler(self, ind, func)
 	if self.DeclaredPlayerDataHandlers[ind] then
-		Root.Warn("PlayerDataHandler \"".. ind .."\" already delcared. Overwriting.")
+		warn("PlayerDataHandler \"".. ind .."\" already delcared. Overwriting.")
 	end
 
 	self.DeclaredPlayerDataHandlers[ind] = func
@@ -153,8 +171,10 @@ end
 --- @param setting string -- Setting
 --- @param data table -- Setting data table
 function Core.DeclareSetting(self, setting, data)
+	DebugWarn("DECLARE SETTING", setting, data)
+
 	if self.DeclaredSettings[setting] then
-		Root.Warn("Setting \"".. setting .."\" already delcared. Overwriting.")
+		warn("Setting \"".. setting .."\" already delcared. Overwriting.")
 	end
 
 	if data.Package and type(data.Package) == "table" then
@@ -176,17 +196,43 @@ end
 
 
 --- If a setting is not found, this is responsible for returning a value for it (or possibly, also setting it)
---- @method SettingsIndex
+--- @method SettingDefault
 --- @within Server.Core
 --- @param tab table
 --- @param ind string -- Setting
 --- @return DefaultSettingValue
-function Core.SettingsIndex(self, tab, ind)
+function Core.SettingDefault(self, ind: string): any
 	local found = self.DeclaredSettings[ind]
+	
+	DebugWarn("FOUND SETTING DEFAULT:", ind, found, self.DeclaredSettings)
+
 	if found then
 		return found.DefaultValue
+	end
+end
+
+
+--- Responsible for returning the value of a setting if there is no override.
+--- @method SettingsIndex
+--- @within Server.Core 
+--- @param tab table
+--- @param ind string -- Setting 
+--- @return any
+function Core.SettingsIndex(self, ind: string): any
+	local override = Root.Core.SettingsOverrides[ind]
+	local user = if override == nil then Root.Core.UserSettings[ind] else nil
+	local default = if user == nil and override == nil then self:SettingDefault(ind) else nil
+	local found = if override ~= nil then override elseif user ~= nil then user else default
+
+	DebugWarn("SETTING | OVERRIDE", ind, override)
+	DebugWarn("SETTING | USER", ind, user)
+	DebugWarn("SETTING | DEFAULT", ind, default)
+	DebugWarn("SETTING | FOUND", ind, found)
+	
+	if found then
+		return found
 	else
-		Root.Warn("Unknown setting requested:", ind)
+		warn("Unknown setting requested:", ind)
 	end
 end
 
@@ -261,14 +307,11 @@ return {
 			PlayerDataCacheTimeout = 60*10
 		}
 
+		DebugWarn("USER SETTINGS", Root.Settings, Root.Core.UserSettings)
 		Root.Core.UserSettings = Root.Settings
 		Root.Settings = setmetatable({}, {
 			__index = function(self, ind)
-				if Root.Core.SettingsOverrides[ind] ~= nil then
-					return Root.Core.SettingsOverrides[ind]
-				else
-					return Core:SettingsIndex(self, ind);
-				end
+				return Root.Core:SettingsIndex(ind)
 			end,
 
 			__newindex = function(self, ind, val)
@@ -276,17 +319,17 @@ return {
 			end,
 		});
 
-		Core.PlayerData = Utilities:MemoryCache({
+		Root.Core.PlayerData = Utilities:MemoryCache({
 			Core.PlayerDataCache,
 			Timeout = Root.Timeouts.PlayerDataCacheTimeout,
 			AccessResetsTimer = true
 		})
 
-		Core:DeclareDefaultPlayerData("Leaving", false)
-		Core:DeclareDefaultPlayerData("ClientReady", false)
-		Core:DeclareDefaultPlayerData("ObtainedKeys", false)
+		Root.Core:DeclareDefaultPlayerData("Leaving", false)
+		Root.Core:DeclareDefaultPlayerData("ClientReady", false)
+		Root.Core:DeclareDefaultPlayerData("ObtainedKeys", false)
 
-		Core:DeclareDefaultPlayerData("Cache", function(p, newData)
+		Root.Core:DeclareDefaultPlayerData("Cache", function(p, newData)
 			return Utilities:MemoryCache({
 				Cache = {},
 				Timeout = 0,
@@ -294,18 +337,18 @@ return {
 			})
 		end)
 
-		Core:DeclareDefaultPlayerData("EncryptionKey", function(p, newData)
+		Root.Core:DeclareDefaultPlayerData("EncryptionKey", function(p, newData)
 			return Utilities:RandomString()
 		end)
 
-		Core:DeclareDefaultPlayerData("UserSettings", function(p, newData)
+		Root.Core:DeclareDefaultPlayerData("UserSettings", function(p, newData)
 			return {}
 		end)
 
 		--// Declare settings
 		if Package.Metadata.Settings then
 			for setting,data in pairs(Package.Metadata.Settings) do
-				Core:DeclareSetting(setting, data)
+				Root.Core:DeclareSetting(setting, data)
 			end
 		end
 	end;

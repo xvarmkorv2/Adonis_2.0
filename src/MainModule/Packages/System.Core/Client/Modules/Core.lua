@@ -8,6 +8,25 @@
 
 local Root, Package, Utilities, Service
 
+--// Output
+local Verbose = false
+local oWarn = warn;
+
+local function warn(...)
+	if Root and Root.Warn then
+		Root.Warn(...)
+	else
+		oWarn(":: ".. script.Name .." ::", ...)
+	end
+end
+
+local function DebugWarn(...)
+	if Verbose then
+		warn("Debug ::", ...)
+	end
+end
+
+
 --- Responsible for core functionality.
 --- @class Client.Core
 --- @client
@@ -24,9 +43,9 @@ local Core = {
 --- @within Client.Core
 --- @param setting string -- Setting to declare
 --- @param data table -- Setting information table
-function Core.DeclareSetting(self, setting, data)
+function Core.DeclareSetting(self, setting: string, data: {[string]: any})
 	if self.DeclaredSettings[setting] then
-		Root.Warn("Setting \"".. setting .."\" already delcared. Overwriting.")
+		warn("Setting \"".. setting .."\" already delcared. Overwriting.")
 	end
 
 	if data.Package and type(data.Package) == "table" then
@@ -41,18 +60,48 @@ function Core.DeclareSetting(self, setting, data)
 end
 
 
---- If a setting is not found, this is responsible for returning a value for it (or possibly, also setting it)
---- @method SettingsIndex
---- @within Client.Core
---- @param tab table
---- @param ind string -- Setting
---- @return any -- Default setting value
-function Core.SettingsIndex(self, tab, ind)
+--[=[
+	If a setting is not found, this is responsible for returning a value for it (or possibly, also setting it)
+	@method SettingDefault
+	@within Client.Core
+	@param tab table
+	@param ind string -- Setting
+	@return DefaultSettingValue
+]=]
+function Core.SettingDefault(self, ind: string): any
 	local found = self.DeclaredSettings[ind]
+
+	DebugWarn("FOUND SETTING DEFAULT:", ind, found, self.DeclaredSettings)
+	
 	if found then
 		return found.DefaultValue
+	end
+end
+
+
+--[=[ 
+	Responsible for returning the value of a setting if there is no override.
+	@method SettingsIndex
+	@within Client.Core
+	@param tab table
+	@param ind string -- Setting
+	@return any
+]=]
+function Core.SettingsIndex(self, ind: string): any
+	local override = Root.Core.SettingsOverrides[ind]
+	local user = if override == nil then Root.Core.UserSettings[ind] else nil
+	local default = if user == nil and override == nil then self:SettingDefault(ind) else nil
+	local found = if override ~= nil then override elseif user ~= nil then user else default
+
+	DebugWarn("SETTING | OVERRIDE", ind, override)
+	DebugWarn("SETTING | USER", ind, user)
+	DebugWarn("SETTING | DEFAULT", ind, default)
+	DebugWarn("SETTING | FOUND", ind, found)
+	
+	if found then
+		return found
 	else
-		Root.Warn("Unknown setting requested:", ind)
+		warn("Unknown setting requested:", ind)
 	end
 end
 
@@ -61,7 +110,7 @@ end
 --- @method GetAllSettings
 --- @within Client.Core
 --- @return table -- All settings in the format [setting] = value
-function Core.GetAllSettings(self)
+function Core.GetAllSettings(self): {[any]: any}
 	return Utilities:MergeTables({}, self.UserSettings, self.SettingsOverrides)
 end
 
@@ -71,12 +120,13 @@ end
 --- @within Client.Core
 --- @param setting string -- Setting
 --- @param value any -- Value
-function Core.UpdateSetting(self, setting, value)
+function Core.UpdateSetting(self, setting: string, value: any)
 	Root.Core.SettingsOverrides[setting] = value
 	Utilities.Events.SettingChanged:Fire(setting, value)
 end
 
 
+--// Return initializer
 return {
 	Init = function(cRoot, cPackage)
 		Root = cRoot
@@ -92,13 +142,7 @@ return {
 		Root.Core.UserSettings = {}
 		Root.Settings = setmetatable({}, {
 			__index = function(self, ind)
-				if Root.Core.SettingsOverrides[ind] ~= nil then
-					return Root.Core.SettingsOverrides[ind]
-				elseif Root.Core.UserSettings[ind] ~= nil then
-					return Root.Core.UserSettings[ind]
-				else
-					return Core:SettingsIndex(self, ind);
-				end
+				return Core:SettingsIndex(ind);
 			end,
 
 			__newindex = function(self, ind, val)

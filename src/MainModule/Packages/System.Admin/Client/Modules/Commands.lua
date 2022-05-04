@@ -14,11 +14,22 @@ local Commands = { DeclaredCommands = { } }
 
 --// Output
 local Verbose = false
-local function DebugWarn(...)
-	if Verbose and Root and Root.Warn then
+local oWarn = warn;
+
+local function warn(...)
+	if Root and Root.Warn then
 		Root.Warn(...)
+	else
+		oWarn(":: ".. script.Name .." ::", ...)
 	end
 end
+
+local function DebugWarn(...)
+	if Verbose then
+		warn("Debug ::", ...)
+	end
+end
+
 
 
 --- Responsible for client-side command handling.
@@ -35,6 +46,7 @@ end
 --- @param cmdIndex string -- Command index
 --- @param ... any -- Command function parameters
 --- @return result
+--- @tag System.Admin
 function RemoteCommands.RunClientSideCommand(cmdIndex: string, ...)
 	DebugWarn("DO CLIENT SIDE COMMAND", cmdIndex, ...)
 	local foundCommand = Root.Commands.DeclaredCommands[cmdIndex]
@@ -49,6 +61,7 @@ end
 --- @function FinishCommandDeclarations
 --- @within Client.Remote.Commands
 --- @param settings table -- Table containing settings sent by the server.
+--- @tag System.Admin
 function RemoteCommands.FinishCommandDeclarations(settings)
 	DebugWarn("FINISH DECLARATION", settings)
 	if settings then
@@ -85,7 +98,7 @@ function Commands.UpdateSettingProxies(self, data)
 			if setting then
 				data[i] = setting
 			else
-				Root.Warn("Cannot update setting definition: Setting not found :: ", v.Index)
+				warn("Cannot update setting definition: Setting not found :: ", v.Index)
 			end
 		elseif type(v) == "table" then
 			self:UpdateSettingProxies(v)
@@ -101,7 +114,7 @@ end
 --- @param data {} -- Command data table
 function Commands.DeclareCommand(self, CommandIndex: string, data: {})
 	if self.DeclaredCommands[CommandIndex] then
-		Root.Warn("CommandIndex \"".. CommandIndex .."\" already delcared. Overwriting.")
+		warn("CommandIndex \"".. CommandIndex .."\" already delcared. Overwriting.")
 	end
 
 	self.DeclaredCommands[CommandIndex] = data

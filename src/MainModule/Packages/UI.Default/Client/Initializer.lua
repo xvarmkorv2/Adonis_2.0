@@ -21,42 +21,43 @@ local Package = {
 
 --// Misc loading variables
 local RootTable;
-local Verbose = false;
 
 --// Output
+local Verbose = false;
 local oWarn = warn;
 
 local function warn(...)
 	if RootTable and RootTable.Warn then
 		RootTable.Warn(...)
 	else
-		oWarn(":: Adonis Client ::", ...)
+		oWarn(":: ".. script.Name .." ::", ...)
 	end
 end
 
-local function debug(...)
+local function DebugWarn(...)
 	if Verbose then
 		warn("Debug ::", ...)
 	end
 end
 
+
 --// Initializer functions
 return {
 	Init = function(Root, Packages)
-		debug("INIT " .. Package.Metadata.Name .. " PACKAGE")
+		DebugWarn("INIT " .. Package.Metadata.Name .. " PACKAGE")
 
 		--// Init
 		RootTable = Root
 		Verbose = if Root.Verbose ~= nil then Root.Verbose else Verbose
 
-		if Package.Metadata.ModuleGroup and not Root.UI.DeclaredModuleGroups[Package.Metadata.ModuleGroup] then
+		if Package.Metadata.ModuleGroup and not Root.UI.DeclaredModules[Package.Metadata.ModuleGroup] then
 			Root.UI:DeclareModuleGroup({
 				Name = Package.Metadata.ModuleGroup,
 				Fallback = Package.Metadata.ModuleFallback
 			})
 		end
 
-		if Package.Metadata.PrefabGroup and not Root.UI.DeclaredPrefabGroups[Package.Metadata.PrefabGroup] then
+		if Package.Metadata.PrefabGroup and not Root.UI.DeclaredPrefabs[Package.Metadata.PrefabGroup] then
 			Root.UI:DeclarePrefabGroup({
 				Name = Package.Metadata.PrefabGroup,
 				Fallback = Package.Metadata.PrefabFallback
@@ -77,12 +78,12 @@ return {
 			end
 		end
 
-		debug("INIT " .. Package.Metadata.Name .. " PACKAGE FINISHED")
+		DebugWarn("INIT " .. Package.Metadata.Name .. " PACKAGE FINISHED")
 	end;
 
 	AfterInit = function(Root, Packages)
-		debug("AFTERINIT " .. Package.Metadata.Name .. " PACKAGE")
+		DebugWarn("AFTERINIT " .. Package.Metadata.Name .. " PACKAGE")
 
-		debug("AFTERINIT " .. Package.Metadata.Name .. " PACKAGE FINISHED")
+		DebugWarn("AFTERINIT " .. Package.Metadata.Name .. " PACKAGE FINISHED")
 	end;
 }
